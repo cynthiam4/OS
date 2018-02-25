@@ -4,6 +4,7 @@
 #include <linux/kernel.h> //for printk
 #include <linux/sched.h>
 #include <linux/list.h>
+#include <linux/slab.h>
 
 struct processInfo
 {
@@ -12,38 +13,58 @@ struct processInfo
   int number_of_children;
   int first_child_pid;
   char first_child_name[16];
-  struct list_head processInfoList;
+  struct list_head list;
 };
+
+struct Report
+{
+  int runnable;
+  int unrunnable;
+  int stopped;
+  struct processInfo *processInfoList;
+};
+//function signatures
+static void traverse_children(struct task_struct *, struct processInfo *);
+static int hello_proc_show(struct seq_file *, void *);
+static void traverse_processes(struct task_struct *);
+static void check_state(int *, int *, int *, int);
+static int hello_proc_open(struct inode *, struct file *);
+static int __init hello_proc_init(void);
 
 static int hello_proc_show(struct seq_file *m, void *v)
 {
   seq_printf(m, "PROCESS REPORTER:\n");
+  return 0;
 }
 
 static void traverse_processes(struct task_struct *task)
 {
   //counters
-  int runnable = kmalloc(sizeof(int));
-  int unrunnable = kmalloc(sizeof(int));
-  int stopped = kmalloc(sizeof(int));
+  int *runnable = kmalloc(sizeof(int), GFP_KERNEL);
+  int *unrunnable = kmalloc(sizeof(int), GFP_KERNEL);
+  int *stopped = kmalloc(sizeof(int), GFP_KERNEL);
   //iterates though each process
+  struct processInfo procInfoList;
   struct processInfo *procInfo;
+  INIT_LIST_HEAD(&procInfoList.list);
   for_each_process(task)
   {
-    check_state(runnable, unrunnable, stopped, (int)task->state);
-    procInfo == kmalloc(sizeof(struct processInfo));
-    procInfo.pid = task->pid;
-    procInfo.name = task->comm;
+    check_state(runnable, unrunnable, stopped, task->state);
+    procInfo = (struct processInfo *)kmalloc(sizeof(struct processInfo), GFP_KERNEL);
+    procInfo->pid = task->pid;
+    strcpy(procInfo->name, task->comm);
     //will traverse children to get counts and oldest child info (first child)
     traverse_children(task, procInfo);
+    list_add(&(procInfo->list), &(procInfoList.list));
     //printk("%s [%d]\n",task->comm , task->pid);
   }
 }
 
 static void traverse_children(struct task_struct *task, struct processInfo *procInfo)
 {
+  struct task_struct *currentChild;
   procInfo->number_of_children = 0;
-  struct task_struct *currentChild = task->p_cptr;
+  currentChild = task->p_cptr;
   while (currentChild)
   {
     procInfo->number_of_children++;
@@ -51,14 +72,14 @@ static void traverse_children(struct task_struct *task, struct processInfo *proc
     { //checks if older sibling process exists
       //assume null means no older sibling, so currentChild IS oldest
       procInfo->first_child_pid = currentChild->pid;
-      procInfo->first_child_name = currentChild->comm;
+      strcpy(procInfo->first_child_name, currentChild->comm);
     }
     currentChild = currentChild->p_osptr;
   }
 }
 
 //checks each process state and increments appropiate state counters
-static void check_state(int *run, int *unrun, int *stop, int *state)
+static void check_state(int *run, int *unrun, int *stop, int state)
 {
   if (state == 0)
   {
@@ -68,7 +89,7 @@ static void check_state(int *run, int *unrun, int *stop, int *state)
   {
     *stop++;
   }
-  else if (state < 0)
+  else
   {
     *unrun++;
   }
@@ -90,14 +111,12 @@ static const struct file_operations hello_proc_fops = {
 static int __init hello_proc_init(void)
 {
   printk(KERN_INFO "HI");
-  traverseProcesses(&init_task);
+  traverse_processes(&init_task);
   proc_create("proc_report", 0, NULL, &hello_proc_fops);
   return 0;
 }
-static
 
-    static void __exit
-    hello_proc_exit(void)
+static void __exit hello_proc_exit(void)
 {
   printk(KERN_INFO "BYE");
   remove_proc_entry("proc_report", NULL);
