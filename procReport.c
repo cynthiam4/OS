@@ -6,6 +6,7 @@
 #include <linux/list.h>
 #include <linux/slab.h>
 
+static struct Report myReport;
 struct processInfo
 {
   int pid;
@@ -18,10 +19,10 @@ struct processInfo
 
 struct Report
 {
-  int runnable;
-  int unrunnable;
-  int stopped;
-  struct processInfo *processInfoList;
+  int runnableptr;
+  int unrunnableptr;
+  int stoppedptr;
+  struct processInfo *processInfoListptr;
 };
 //function signatures
 static void traverse_children(struct task_struct *, struct processInfo *);
@@ -56,8 +57,12 @@ static void traverse_processes(struct task_struct *task)
     //will traverse children to get counts and oldest child info (first child)
     traverse_children(task, procInfo);
     list_add(&(procInfo->list), &(procInfoList.list));
-    //printk("%s [%d]\n",task->comm , task->pid);
   }
+  //setting up content of static report strut for helloProc to access
+  myReport->runnableptr = runnable;
+  myReport->unrunnableptr = unrunnable;
+  myReport->stoppedptr = stopped;
+  myReport->processInfoListptr = processInfoList;
 }
 
 static void traverse_children(struct task_struct *task, struct processInfo *procInfo)
