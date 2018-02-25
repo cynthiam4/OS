@@ -62,20 +62,17 @@ static void traverse_processes(struct task_struct *task)
 
 static void traverse_children(struct task_struct *task, struct processInfo *procInfo)
 {
+  
   struct task_struct *currentChild;
   procInfo->number_of_children = 0;
-  currentChild = task->p_cptr;
-  while (currentChild)
-  {
-    procInfo->number_of_children++;
-    if (currentChild->p_osptr == NULL)
-    { //checks if older sibling process exists
-      //assume null means no older sibling, so currentChild IS oldest
+  list_for_each_entry(currentChild,&task->children,sibling){
+    if(procInfo->number_of_children == 0){//takes in first child info
       procInfo->first_child_pid = currentChild->pid;
-      strcpy(procInfo->first_child_name, currentChild->comm);
+      strcpy(procInfo->first_child_name,currentChild->comm);
     }
-    currentChild = currentChild->p_osptr;
+    procInfo->number_of_children++;
   }
+  
 }
 
 //checks each process state and increments appropiate state counters
