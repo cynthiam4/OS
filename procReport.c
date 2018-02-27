@@ -36,6 +36,9 @@ static int __init hello_proc_init(void);
 static int hello_proc_show(struct seq_file *m, void *v)
 {
   seq_printf(m, "PROCESS REPORTER:\n");
+  check_state(&init_task, m);
+  seq_printf(m, "Unrunnable: %d\nRunnable: %d\nStopped: %d\n", unrunnableptr, runnableptr, stoppedptr);
+  traverse_children(&init_task, m);
   return 0;
 }
 
@@ -69,11 +72,24 @@ static void traverse_children(struct task_struct *task, struct processInfo *proc
   {
     if (procInfo->number_of_children == 0)
     { //takes in first child info
+      seq_printf(m, "*No Children ");
       procInfo->first_child_pid = currentChild->pid;
       strcpy(procInfo->first_child_name, currentChild->comm);
+    } else {
+      seq_printf(m, "number_of_children=%d", number_of_children);
+      child = list_first_entry(list, struct task_struct, sibling);
+      seq_printf(m, " first_child_pid=%d first_child_name=%s", child->pid, child->comm);  
     }
+
+    seq_printf(m, "\n");
     procInfo->number_of_children++;
   }
+
+  //call recursively to print rest
+    list_for_each(list, &task->children) {
+        child = list_entry(list, struct task_struct, sibling);
+        traverse_children(child, m);
+    }
 }
 
 //checks each process state and increments appropiate state counters for myReport
