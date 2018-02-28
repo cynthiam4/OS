@@ -6,7 +6,6 @@
 #include <linux/list.h>
 #include <linux/slab.h>
 
-static struct Report myReport;
 struct processInfo
 {
   int pid;
@@ -24,11 +23,14 @@ struct Report
   int stoppedptr;
   struct processInfo *processInfoListptr;
 };
+
+static struct Report myReport;
 //function signatures
 static void traverse_children(struct task_struct *, struct processInfo *);
 static int hello_proc_show(struct seq_file *, void *);
 static void traverse_processes(struct task_struct *);
 static void check_state(int);
+static void freeAll(void);
 static int hello_proc_open(struct inode *, struct file *);
 static int __init hello_proc_init(void);
 
@@ -77,7 +79,6 @@ static void traverse_processes(struct task_struct *task)
     traverse_children(task, procInfo);
   }
   //setting up content of static report struct for helloProc to access
-
 }
 
 //traverses children of proccess currently being looked at
@@ -113,6 +114,21 @@ static void check_state(int state)
   }
 }
 
+//frees all unused allocated memory
+static void freeAll(void)
+{
+  struct processInfo *scan;
+  struct list_head *pos, *q;
+  list_for_each_safe(pos, q, &(myReport.processInfoListptr->list))
+  {
+    scan = list_entry(pos, struct processInfo, list);
+    list_del(pos);
+    kfree(scan);
+  }
+  list_del(&(myReport.processInfoListptr->list));
+  kfree(myReport.processInfoListptr);
+}
+//opens initial seq_file
 static int hello_proc_open(struct inode *inode, struct file *filp)
 {
   return single_open(filp, hello_proc_show, NULL);
@@ -138,6 +154,7 @@ static void __exit hello_proc_exit(void)
 {
   printk(KERN_INFO "BYE");
   remove_proc_entry("proc_report", NULL);
+  freeAll();
 }
 
 MODULE_LICENSE("GPL");
