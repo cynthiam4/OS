@@ -35,7 +35,22 @@ static int __init hello_proc_init(void);
 //prints report to /proc/proc_report
 static int hello_proc_show(struct seq_file *m, void *v)
 {
+  struct processInfo *scan;
   seq_printf(m, "PROCESS REPORTER:\n");
+  list_for_each_entry(scan, &(myReport.processInfoListptr->list), list)
+  {
+
+    seq_printf(m, "Process ID=%d Name=%s ", scan->pid, scan->name);
+    if (scan->number_of_children == 0)
+    {
+      seq_printf(m, "*No Children\n");
+    }
+    else
+    {
+      seq_printf(m, "number_of_children=%d first_child_pid=%d first_child_name=%s\n",
+                 scan->number_of_children, scan->first_child_pid, scan->first_child_name);
+    }
+  }
   return 0;
 }
 
@@ -43,21 +58,26 @@ static int hello_proc_show(struct seq_file *m, void *v)
 static void traverse_processes(struct task_struct *task)
 {
   //iterates though each process
-  struct processInfo procInfoList;
+  //struct processInfo procInfoList;
   struct processInfo *procInfo;
-  INIT_LIST_HEAD(&procInfoList.list);
+  struct list_head *list;
+
+  myReport.processInfoListptr = (struct processInfo *)kmalloc(sizeof(struct processInfo), GFP_KERNEL);
+  INIT_LIST_HEAD(&(myReport.processInfoListptr->list));
+  list = &(myReport.processInfoListptr->list);
   for_each_process(task)
   {
-    check_state(task->state);
     procInfo = (struct processInfo *)kmalloc(sizeof(struct processInfo), GFP_KERNEL);
+    list_add(&(procInfo->list), list);
+    list = &(procInfo->list);
+    check_state(task->state);
     procInfo->pid = task->pid;
     strcpy(procInfo->name, task->comm);
     //will traverse children to get counts and oldest child info (first child)
     traverse_children(task, procInfo);
-    list_add(&(procInfo->list), &(procInfoList.list));
   }
   //setting up content of static report struct for helloProc to access
-  myReport.processInfoListptr = &procInfoList;
+
 }
 
 //traverses children of proccess currently being looked at
@@ -65,7 +85,7 @@ static void traverse_children(struct task_struct *task, struct processInfo *proc
 {
   struct task_struct *currentChild;
   procInfo->number_of_children = 0;
-  list_for_each_entry(currentChild, &task->children, sibling)
+  list_for_each_entry(currentChild, &(task->children), sibling)
   {
     if (procInfo->number_of_children == 0)
     { //takes in first child info
